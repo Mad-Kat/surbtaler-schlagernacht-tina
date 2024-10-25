@@ -1,0 +1,189 @@
+---
+import client from "../../tina/__generated__/client";
+// import { tinaField } from 'tinacms/dist/react'
+// import { MyComponent } from "../components/MyComponent";
+import TinaEditor from "../components/TinaEditor.astro";
+
+const sponsors = await client.queries.sponsor({
+	relativePath: "../../content/sponsors/sponsors.json",
+});
+// const sponsors2 = await client.queries.sponsor2Connection();
+// console.log({ X: sponsors2.data.sponsor2Connection.edges?.map((n) => n.node) });
+
+function hashFromQuery(input: string) {
+	let hash = 0;
+	for (let i = 0; i < input.length; i++) {
+		const char = input.charCodeAt(i);
+		hash = ((hash << 5) - hash + char) & 0xffffffff; // Apply bitwise AND to ensure non-negative value
+	}
+	const nonNegativeHash = Math.abs(hash);
+	const alphanumericHash = nonNegativeHash.toString(36);
+	return alphanumericHash;
+}
+
+// const attribute = `${id}---sponsor.blocks.0.name`;
+
+// console.log({id, attribute})
+
+const pathMap = new WeakMap();
+function createPathProxy(obj, path = []) {
+	return new Proxy(obj, {
+		get(target, prop, receiver) {
+			const value = Reflect.get(target, prop, receiver);
+			const newPath = [...path, prop];
+
+			if (typeof value === "object" && value !== null) {
+				const proxiedValue = createPathProxy(value, newPath);
+				pathMap.set(proxiedValue, newPath.join("."));
+				return proxiedValue;
+			}
+
+			return value;
+		},
+	});
+}
+function getAttributeId(value, proxiedValue, prop) {
+	// console.log("getPath", proxiedValue)
+	const basePath = pathMap.get(proxiedValue) || [];
+	// console.log({basePath})
+	const path = prop === "" ? basePath : `${basePath}.${prop}`;
+	const id = hashFromQuery(
+		JSON.stringify({
+			query: value.query,
+			variables: value.variables,
+		}),
+	);
+
+	return `${id}---${path}`;
+}
+
+console.log({ DATA: sponsors.data });
+const proxied = createPathProxy(sponsors.data);
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Astro</title>
+	</head>
+	<body data-sponsors={JSON.stringify(sponsors)}>
+		<h1>Astro</h1>
+		<div
+			id="sponsors-list"
+			data-test={getAttributeId(sponsors, proxied.sponsor, "blocks")}
+		>
+			{
+				proxied.sponsor.blocks?.map((sponsor, index) => {
+					return (
+						<div
+							class="sponsor-item"
+							data-sponsor-index={index}
+							data-tina-field={getAttributeId(sponsors, sponsor, "")}
+						>
+							<h2 data-tina-field={getAttributeId(sponsors, sponsor, "name")}>
+								{sponsor.name}
+							</h2>
+							<p data-tina-field={getAttributeId(sponsors, sponsor, "image")}>
+								{sponsor?.image}
+							</p>
+							<p data-tina-field={getAttributeId(sponsors, sponsor, "level")}>
+								{sponsor.level}
+							</p>
+							<p
+								data-tina-field={getAttributeId(sponsors, sponsor, "location")}
+							>
+								{sponsor.location}
+							</p>
+							<p data-tina-field={getAttributeId(sponsors, sponsor, "url")}>
+								{sponsor.url}
+							</p>
+						</div>
+					);
+				})
+			}
+		</div>
+		<TinaEditor
+			query={sponsors.query}
+			variables={sponsors.variables}
+			data={sponsors.data}
+		/>
+		<!-- <MyComponent client:tina {...sponsors} /> -->
+	</body>
+</html>
+
+<script>
+	import { sharedData } from "../lib/store";
+	const sponsors = JSON.parse(document.body.dataset.sponsors ?? "");
+	console.log("Asdfasdfasdfasdfasdfasdf");
+	// import {tinaField} from "tinacms/dist/react"
+
+	function hashFromQuery(input: string) {
+		let hash = 0;
+		for (let i = 0; i < input.length; i++) {
+			const char = input.charCodeAt(i);
+			hash = ((hash << 5) - hash + char) & 0xffffffff; // Apply bitwise AND to ensure non-negative value
+		}
+		const nonNegativeHash = Math.abs(hash);
+		const alphanumericHash = nonNegativeHash.toString(36);
+		return alphanumericHash;
+	}
+
+	function updateSponsorsList(sponsorsData) {
+		const sponsorsList = document.getElementById("sponsors-list");
+		console.log({ sponsorsList });
+		if (!sponsorsList) return;
+
+		// Clear existing sponsors
+		sponsorsList.innerHTML = "";
+
+		// Recreate sponsor items
+		sponsorsData.blocks?.forEach((sponsor, index) => {
+			const sponsorItem = document.createElement("div");
+			sponsorItem.className = "sponsor-item";
+			sponsorItem.setAttribute("data-sponsor-index", index.toString());
+			sponsorItem.setAttribute(
+				"data-tina-field",
+				`${hashFromQuery(JSON.stringify({ query: sponsors.query, variables: sponsors.variables }))}---sponsor.blocks.${index}`,
+			);
+
+			const fields = ["name", "image", "level", "location", "url"];
+			fields.forEach((field) => {
+				const element = document.createElement(field === "name" ? "h2" : "p");
+				element.textContent = sponsor[field] || "";
+				element.setAttribute(
+					"data-tina-field",
+					`${hashFromQuery(JSON.stringify({ query: sponsors.query, variables: sponsors.variables }))}---sponsor.blocks.${index}.${field}`,
+				);
+				sponsorItem.appendChild(element);
+			});
+
+			sponsorsList.appendChild(sponsorItem);
+		});
+	}
+
+	sharedData.subscribe((value) => {
+		if (value) {
+			console.log({ value });
+			updateSponsorsList(value.sponsor);
+			// const field = tinaField(value.sponsor.blocks[0], 'name');
+			// console.log({field})
+
+			// results.forEach(({ element, path }) => {
+			// 	console.log({ element, path });
+			// 	const newValue = getValueByPath(value, path);
+			// 	console.log({ newValue });
+			// 	if (newValue !== undefined && typeof newValue !== "object") {
+			// 		element.innerText = newValue;
+			// 	}
+			// });
+			// if(name){
+
+			// // name.setAttribute('data-tina-field', field)
+			// name.innerText = value.sponsor.blocks[0].name
+			// }
+		}
+	});
+</script>
